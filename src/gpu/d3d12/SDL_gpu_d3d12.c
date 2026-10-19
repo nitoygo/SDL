@@ -1011,6 +1011,9 @@ struct D3D12CommandBuffer
     D3D12GraphicsPipeline *currentGraphicsPipeline;
     D3D12ComputePipeline *currentComputePipeline;
 
+    // Native commands may have bound other descriptor heaps
+    bool needDescriptorHeapRebind;
+
     // Set at acquire time
     D3D12DescriptorHeap *gpuDescriptorHeaps[D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER + 1];
 
@@ -4345,6 +4348,46 @@ static D3D12Buffer *D3D12_INTERNAL_PrepareBufferForWrite(
     return container->activeBuffer;
 }
 
+static void *D3D12_GetCommandBufferNativeHandle(
+    SDL_GPUCommandBuffer *commandBuffer)
+{
+    D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+
+    d3d12CommandBuffer->needDescriptorHeapRebind = true;
+    return d3d12CommandBuffer->graphicsCommandList;
+}
+
+static void *D3D12_GetTextureNativeHandle(
+    SDL_GPURenderer *driverData,
+    SDL_GPUTexture *texture)
+{
+    (void)driverData;
+    return ((D3D12TextureContainer *)texture)->activeTexture->resource;
+}
+
+static void D3D12_INTERNAL_RebindGPUDescriptorHeapsIfNeeded(D3D12CommandBuffer *commandBuffer)
+{
+    ID3D12DescriptorHeap *heaps[2];
+
+    if (!commandBuffer->needDescriptorHeapRebind) {
+        return;
+    }
+    commandBuffer->needDescriptorHeapRebind = false;
+
+    // Not acquired yet; the first bind will set them
+    if (commandBuffer->gpuDescriptorHeaps[0] == NULL) {
+        return;
+    }
+
+    heaps[0] = commandBuffer->gpuDescriptorHeaps[0]->handle;
+    heaps[1] = commandBuffer->gpuDescriptorHeaps[1]->handle;
+
+    ID3D12GraphicsCommandList_SetDescriptorHeaps(
+        commandBuffer->graphicsCommandList,
+        2,
+        heaps);
+}
+
 static void D3D12_BeginRenderPass(
     SDL_GPUCommandBuffer *commandBuffer,
     const SDL_GPUColorTargetInfo *colorTargetInfos,
@@ -4352,6 +4395,8 @@ static void D3D12_BeginRenderPass(
     const SDL_GPUDepthStencilTargetInfo *depthStencilTargetInfo)
 {
     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+
+    D3D12_INTERNAL_RebindGPUDescriptorHeapsIfNeeded(d3d12CommandBuffer);
 
     Uint32 framebufferWidth = SDL_MAX_UINT32;
     Uint32 framebufferHeight = SDL_MAX_UINT32;
@@ -5409,6 +5454,8 @@ static void D3D12_BeginComputePass(
     Uint32 numStorageBufferBindings)
 {
     D3D12CommandBuffer *d3d12CommandBuffer = (D3D12CommandBuffer *)commandBuffer;
+
+    D3D12_INTERNAL_RebindGPUDescriptorHeapsIfNeeded(d3d12CommandBuffer);
 
     d3d12CommandBuffer->computeReadWriteStorageTextureSubresourceCount = numStorageTextureBindings;
     d3d12CommandBuffer->computeReadWriteStorageBufferCount = numStorageBufferBindings;
@@ -7478,6 +7525,7 @@ static SDL_GPUCommandBuffer *D3D12_AcquireCommandBuffer(
 
     // Set the bind state
     commandBuffer->currentGraphicsPipeline = NULL;
+    commandBuffer->needDescriptorHeapRebind = false;
 
     SDL_zeroa(commandBuffer->colorTargetSubresources);
     SDL_zeroa(commandBuffer->colorResolveSubresources);
@@ -9296,6 +9344,12 @@ static SDL_GPUDevice *D3D12_CreateDevice(bool debugMode, bool preferLowPower, SD
     }
 #endif
 
+    // Xbox builds have no device properties
+    if (renderer->props) {
+        SDL_SetPointerProperty(renderer->props, SDL_PROP_GPU_DEVICE_D3D12_DEVICE_POINTER, renderer->device);
+        SDL_SetPointerProperty(renderer->props, SDL_PROP_GPU_DEVICE_D3D12_COMMAND_QUEUE_POINTER, renderer->commandQueue);
+    }
+
     // Create indirect command signatures
 
     D3D12_COMMAND_SIGNATURE_DESC commandSignatureDesc;
@@ -9529,6 +9583,8 @@ static SDL_GPUDevice *D3D12_CreateDevice(bool debugMode, bool preferLowPower, SD
     }
 
     ASSIGN_DRIVER(D3D12)
+    result->GetCommandBufferNativeHandle = D3D12_GetCommandBufferNativeHandle;
+    result->GetTextureNativeHandle = D3D12_GetTextureNativeHandle;
     result->driverData = (SDL_GPURenderer *)renderer;
     result->shader_formats = shaderFormats;
     result->debug_mode = debugMode;

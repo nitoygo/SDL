@@ -2566,6 +2566,13 @@ extern SDL_DECLSPEC SDL_GPUShaderFormat SDLCALL SDL_GetGPUShaderFormats(SDL_GPUD
  * Driver Branch: promo490_3_Google
  * ```
  *
+ * With the Direct3D 12 driver, these are also available:
+ *
+ * - `SDL_PROP_GPU_DEVICE_D3D12_DEVICE_POINTER`: the ID3D12Device used by the
+ *   GPU device.
+ * - `SDL_PROP_GPU_DEVICE_D3D12_COMMAND_QUEUE_POINTER`: the direct
+ *   ID3D12CommandQueue that command buffers are submitted to.
+ *
  * \param device a GPU context to query.
  * \returns a valid property ID on success or 0 on failure; call
  *          SDL_GetError() for more information.
@@ -2580,6 +2587,49 @@ extern SDL_DECLSPEC SDL_PropertiesID SDLCALL SDL_GetGPUDeviceProperties(SDL_GPUD
 #define SDL_PROP_GPU_DEVICE_DRIVER_NAME_STRING        "SDL.gpu.device.driver_name"
 #define SDL_PROP_GPU_DEVICE_DRIVER_VERSION_STRING     "SDL.gpu.device.driver_version"
 #define SDL_PROP_GPU_DEVICE_DRIVER_INFO_STRING        "SDL.gpu.device.driver_info"
+#define SDL_PROP_GPU_DEVICE_D3D12_DEVICE_POINTER        "SDL.gpu.device.d3d12.device"
+#define SDL_PROP_GPU_DEVICE_D3D12_COMMAND_QUEUE_POINTER "SDL.gpu.device.d3d12.command_queue"
+
+/**
+ * Gets the native command list behind a command buffer, so that native
+ * commands (for example a vendor upscaler) can be recorded into it.
+ *
+ * With the Direct3D 12 driver this is an ID3D12GraphicsCommandList. Other
+ * drivers are not supported and return NULL.
+ *
+ * Record native commands only between passes. Between passes every texture
+ * is in its default resource state, picked from its usage flags in this
+ * order: SAMPLER or GRAPHICS_STORAGE_READ gives
+ * D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, COLOR_TARGET gives RENDER_TARGET,
+ * DEPTH_STENCIL_TARGET gives DEPTH_WRITE, COMPUTE_STORAGE_READ gives
+ * NON_PIXEL_SHADER_RESOURCE, and the compute storage write usages give
+ * UNORDERED_ACCESS. Native commands must return every texture they touch to
+ * that state. SDL restores its own descriptor heaps at the next render or
+ * compute pass, so native code may bind its own.
+ *
+ * \param command_buffer a command buffer, not inside any pass.
+ * \returns the native command list on success or NULL on failure; call
+ *          SDL_GetError() for more information.
+ *
+ * \sa SDL_GetGPUTextureNativeHandle
+ */
+extern SDL_DECLSPEC void * SDLCALL SDL_GetGPUCommandBufferNativeHandle(SDL_GPUCommandBuffer *command_buffer);
+
+/**
+ * Gets the native resource behind a texture.
+ *
+ * With the Direct3D 12 driver this is an ID3D12Resource. Other drivers are
+ * not supported and return NULL. A texture that has been cycled is backed by
+ * a different resource afterwards, so get the handle again after each cycle.
+ *
+ * \param device a GPU context.
+ * \param texture the texture.
+ * \returns the native resource on success or NULL on failure; call
+ *          SDL_GetError() for more information.
+ *
+ * \sa SDL_GetGPUCommandBufferNativeHandle
+ */
+extern SDL_DECLSPEC void * SDLCALL SDL_GetGPUTextureNativeHandle(SDL_GPUDevice *device, SDL_GPUTexture *texture);
 
 
 /* State Creation */

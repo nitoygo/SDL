@@ -1485,6 +1485,45 @@ void SDL_InsertGPUDebugLabel(
         text);
 }
 
+void *SDL_GetGPUCommandBufferNativeHandle(
+    SDL_GPUCommandBuffer *command_buffer)
+{
+    CHECK_PARAM(command_buffer == NULL) {
+        SDL_InvalidParamError("command_buffer");
+        return NULL;
+    }
+
+    if (COMMAND_BUFFER_DEVICE->debug_mode) {
+        CHECK_COMMAND_BUFFER_RETURN_NULL
+        CHECK_ANY_PASS_IN_PROGRESS("Cannot get the native command buffer during a pass!", NULL)
+    }
+
+    if (COMMAND_BUFFER_DEVICE->GetCommandBufferNativeHandle == NULL) {
+        SDL_Unsupported();
+        return NULL;
+    }
+
+    return COMMAND_BUFFER_DEVICE->GetCommandBufferNativeHandle(command_buffer);
+}
+
+void *SDL_GetGPUTextureNativeHandle(
+    SDL_GPUDevice *device,
+    SDL_GPUTexture *texture)
+{
+    CHECK_DEVICE_MAGIC(device, NULL);
+    CHECK_PARAM(texture == NULL) {
+        SDL_InvalidParamError("texture");
+        return NULL;
+    }
+
+    if (device->GetTextureNativeHandle == NULL) {
+        SDL_Unsupported();
+        return NULL;
+    }
+
+    return device->GetTextureNativeHandle(device->driverData, texture);
+}
+
 void SDL_PushGPUDebugGroup(
     SDL_GPUCommandBuffer *command_buffer,
     const char *name)

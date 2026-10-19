@@ -725,6 +725,15 @@ struct SDL_GPUDevice
         SDL_GPUCommandBuffer *commandBuffer,
         const char *name);
 
+    // Native interop; left NULL by drivers that don't support it
+
+    void *(*GetCommandBufferNativeHandle)(
+        SDL_GPUCommandBuffer *commandBuffer);
+
+    void *(*GetTextureNativeHandle)(
+        SDL_GPURenderer *driverData,
+        SDL_GPUTexture *texture);
+
     void (*PopDebugGroup)(
         SDL_GPUCommandBuffer *commandBuffer);
 
