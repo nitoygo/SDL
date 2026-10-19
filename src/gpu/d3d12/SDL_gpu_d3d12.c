@@ -7005,9 +7005,12 @@ static bool D3D12_INTERNAL_CreateSwapchain(
     // Min swapchain image count is 2
     windowData->swapchainTextureCount = SDL_clamp(renderer->allowedFramesInFlight, 2, 3);
 
-    // Initialize the swapchain buffer descriptor
-    swapchainDesc.Width = 0;  // use client window width
-    swapchainDesc.Height = 0; // use client window height
+    // Initialize the swapchain buffer descriptor. An explicit size, because swapchain hooks such as
+    // OptiScaler's treat a 0x0 (size to window) request as an overlay and leave it unhooked.
+    int windowWidth = 0, windowHeight = 0;
+    SDL_GetWindowSizeInPixels(windowData->window, &windowWidth, &windowHeight);
+    swapchainDesc.Width = (UINT)windowWidth;
+    swapchainDesc.Height = (UINT)windowHeight;
     swapchainDesc.Format = swapchainFormat;
     swapchainDesc.SampleDesc.Count = 1;
     swapchainDesc.SampleDesc.Quality = 0;
